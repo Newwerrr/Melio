@@ -1,9 +1,11 @@
+using Melio.Classes;
+using Melio.Patches;
+using Melio.Patches.Menu;
 using MelonLoader;
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
-using Melio.Patches;
-using Melio.Classes;
+using Melio.Hooks;
 
 [assembly: MelonInfo(typeof(MelioMod), "Melio", "1.0.0", "Newwer")]
 [assembly: MelonGame(null, null)]
@@ -21,7 +23,8 @@ public class MelioMod : MelonMod
     {
         "Server",
         "Photon",
-        "GorillaTagger"
+        "GorillaTagger",
+        "Anti-Exploits"
     };
 
     private GUIStyle windowStyle;
@@ -31,6 +34,7 @@ public class MelioMod : MelonMod
 
     private float reconnectTimeout = -1f;
     private bool waitingForReconnect = false;
+    private bool antitag = false;
 
     private Vector2 tabScroll;
     private Vector2 contentScroll;
@@ -50,21 +54,42 @@ public class MelioMod : MelonMod
 
     public override void OnUpdate()
     {
-        if (!waitingForReconnect)
-            return;
-
-        if (PhotonNetwork.IsConnected)
+        
+        if (waitingForReconnect)
         {
-            MelonLogger.Msg("Connected to Photon.");
-            waitingForReconnect = false;
-            return;
+            if (PhotonNetwork.IsConnected)
+            {
+                MelonLogger.Msg("Connected to Photon.");
+                waitingForReconnect = false;
+
+                
+                if (antitag)
+                {
+                    if (!PhotonNetwork.IsMasterClient)
+                        {
+                        Methods.InvisForU(RpcTarget.MasterClient);
+                    }
+                    {
+                        if ((Hooks.InfectedList().Contains(NetworkSystem.Instance.LocalPlayer))) 
+                        {
+                            Hooks.RemoveInfected(NetworkSystem.Instance.LocalPlayer);
+                        }
+                            
+                    }
+
+                        
+                }
+            }
+            else if (Time.time > reconnectTimeout)
+            {
+                MelonLogger.Error("Failed to connect to Photon.");
+                waitingForReconnect = false;
+            }
+
+            return; 
         }
 
-        if (Time.time > reconnectTimeout)
-        {
-            MelonLogger.Error("Failed to connect to Photon.");
-            waitingForReconnect = false;
-        }
+        
     }
 
     public override void OnGUI()
@@ -167,6 +192,10 @@ public class MelioMod : MelonMod
             case 2:
                 DrawGorillaTaggerTab();
                 break;
+
+            case 3:
+                DrawAntiExploitsTab();
+                break;
         }
 
         GUILayout.EndVertical();
@@ -266,7 +295,7 @@ public class MelioMod : MelonMod
 
         GUILayout.EndScrollView();
     }
-
+    
     private void DrawServerTab()
     {
         GUILayout.Label(
@@ -282,6 +311,23 @@ public class MelioMod : MelonMod
         ))
         {
             NetworkSystem.Instance.ReturnToSinglePlayer();
+        }
+    }
+    private void DrawAntiExploitsTab()
+    {
+        GUILayout.Label(
+            "Anti-Exploits: " + antitag,
+            labelStyle
+        );
+
+        GUILayout.Space(15);
+
+        if (GUILayout.Button(
+            "Anti-Tag",
+            buttonStyle
+        ))
+        {
+            antitag = !antitag;
         }
     }
 
