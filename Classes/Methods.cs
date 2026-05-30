@@ -87,9 +87,10 @@ namespace Melio.Classes
 
             try
             {
-
+                MonkeAgent.instance.rpcCallLimit = int.MaxValue;
+                MonkeAgent.instance.rpcErrorMax = int.MaxValue;
                 PhotonNetwork.MaxResendsBeforeDisconnect = int.MaxValue;
-                PhotonNetwork.QuickResends = 0;
+                PhotonNetwork.QuickResends = int.MaxValue; // turns out, setting this to zero still kicks you lol
 
                 PhotonNetwork.SendAllOutgoingCommands();
             }
