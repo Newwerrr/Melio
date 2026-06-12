@@ -1,4 +1,4 @@
-﻿using ExitGames.Client.Photon;
+using ExitGames.Client.Photon;
 using Fusion;
 using GorillaExtensions;
 using GorillaGameModes;
@@ -199,7 +199,11 @@ namespace Melio.Classes
                 
                 PhotonNetwork.MaxResendsBeforeDisconnect = int.MaxValue;
                 PhotonNetwork.QuickResends = int.MaxValue;
-                
+                PhotonHandler.MaxDatagrams = int.MaxValue;
+                PhotonNetwork.NetworkingClient.LoadBalancingPeer.LimitOfUnreliableCommands = int.MaxValue;
+                PhotonHandler.MaxDatagrams = 256; //learned, do NOT set this high, it breaks photon.
+                PhotonNetwork.NetworkingClient.LoadBalancingPeer.MaximumTransferUnit = 1200;
+
 
                 PhotonNetwork.SendAllOutgoingCommands();
             }
