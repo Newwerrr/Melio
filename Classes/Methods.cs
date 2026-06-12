@@ -201,8 +201,8 @@ namespace Melio.Classes
                 PhotonNetwork.QuickResends = int.MaxValue;
                 PhotonHandler.MaxDatagrams = int.MaxValue;
                 PhotonNetwork.NetworkingClient.LoadBalancingPeer.LimitOfUnreliableCommands = int.MaxValue;
-                PhotonHandler.MaxDatagrams = 256; //learned, do NOT set this high, it breaks photon.
-                PhotonNetwork.NetworkingClient.LoadBalancingPeer.MaximumTransferUnit = 1200;
+                PhotonHandler.MaxDatagrams = 1026; // found the weakness, i think this prevents disconnect from events.
+                PhotonNetwork.NetworkingClient.LoadBalancingPeer.MaximumTransferUnit = 4200; //learned, do NOT set this high, it breaks photon.
 
 
                 PhotonNetwork.SendAllOutgoingCommands();
