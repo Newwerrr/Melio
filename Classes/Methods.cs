@@ -1,6 +1,12 @@
-using ExitGames.Client.Photon;
+﻿using ExitGames.Client.Photon;
+using Fusion;
+using GorillaExtensions;
+using GorillaGameModes;
+using GorillaLocomotion;
+using GorillaLocomotion.Gameplay;
 using GorillaNetworking;
 using GorillaTagScripts;
+using Melio.Hooks;
 using Melio.Patches.Menu;
 using MelonLoader;
 using Photon.Pun;
@@ -8,13 +14,15 @@ using Photon.Realtime;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using UnityEngine;
+using static UnityEngine.GraphicsBuffer;
 using Hashtable = ExitGames.Client.Photon.Hashtable;
 using JoinType = GorillaNetworking.JoinType;
 using Object = UnityEngine.Object;
 using Random = UnityEngine.Random;
-using System.Linq;
+
 
 namespace Melio.Classes
 {
@@ -27,6 +35,8 @@ namespace Melio.Classes
         private static FieldInfo SerializeRaiseEvOptionsField;
         private static FieldInfo SerializeViewBatchesField;
         private static PropertyInfo MixedModeIsReliableProperty;
+        public static System.Single RopeDelay = 0f;
+
 
         static Methods()
         {
@@ -105,7 +115,78 @@ namespace Melio.Classes
 
             RPCProtection();
         }
+        public static void BetaStrongerLagTarget(object target, float delay, int amount)
+        {
+            if (!PhotonNetwork.InRoom) return;
+            if (Time.time < lagDebounce) return;
 
+            if (target is VRRig rig) target = rig.Creator;
+            if (target is NetPlayer legacyNetPlayer) target = legacyNetPlayer.GetPlayerRef();
+
+            lagDebounce = (float)(Time.time + delay);
+
+            byte eventIndex = 186;
+            object data = new object[] { float.NaN, float.PositiveInfinity, float.NegativeInfinity, null, null, null, int.MaxValue, int.MinValue, float.NaN, float.PositiveInfinity, float.NegativeInfinity, null, null, null, int.MaxValue, int.MinValue };
+            SendOptions sendOptions = new SendOptions
+            {
+                Reliability = false,
+                DeliveryMode = DeliveryMode.Unreliable
+            };
+            RaiseEventOptions raiseEventOptions = new RaiseEventOptions
+            {
+                CachingOption = EventCaching.DoNotCache
+            };
+
+            switch (target)
+            {
+                case RpcTarget rpcTarget:
+                    raiseEventOptions.Receivers =
+                        rpcTarget == RpcTarget.All ? ReceiverGroup.All :
+                        rpcTarget == RpcTarget.MasterClient ? ReceiverGroup.MasterClient :
+                        ReceiverGroup.Others;
+                    break;
+
+                case Player player:
+                    raiseEventOptions.TargetActors = new[] { player.ActorNumber };
+                    break;
+
+                case int[] actorNumbers:
+                    raiseEventOptions.TargetActors = actorNumbers;
+                    break;
+            }
+
+            for (int i = 0; i < amount; i++)
+            {
+                PhotonNetwork.NetworkingClient.OpRaiseEvent(eventIndex, data, raiseEventOptions, sendOptions);
+            }
+
+            RPCProtection();
+        }
+
+
+        public static void LocalFlingAllRopes()
+        {
+            foreach (var rope in Hooks.RopeSwingHooks.GetAllRopes())
+            {
+                RopeSwingManager.instance.SetVelocity(
+                    rope.ropeId,
+                    -1,
+                    new Vector3(0, 100000f, 0),
+                    true,
+                    default(PhotonMessageInfo)
+                );
+            }
+        }
+        public static void LocalFlingRopeByRope(GorillaRopeSwing RopeObject)
+        {
+            RopeSwingManager.instance.SetVelocity(
+                               RopeObject.ropeId,
+                               -1,
+                               new Vector3(0, 100000f, 0),
+                               true,
+                               default(PhotonMessageInfo)
+                           );
+        }
         public static void RPCProtection()
         {
             if (!PhotonNetwork.InRoom)
@@ -115,8 +196,10 @@ namespace Melio.Classes
             {
                 MonkeAgent.instance.rpcCallLimit = int.MaxValue;
                 MonkeAgent.instance.rpcErrorMax = int.MaxValue;
+                
                 PhotonNetwork.MaxResendsBeforeDisconnect = int.MaxValue;
                 PhotonNetwork.QuickResends = int.MaxValue;
+                
 
                 PhotonNetwork.SendAllOutgoingCommands();
             }
@@ -127,6 +210,7 @@ namespace Melio.Classes
         {
             return p.GetPlayerRef();
         }
+        
 
         public static void InvisForU(Photon.Pun.RpcTarget target)
         {
@@ -183,6 +267,7 @@ namespace Melio.Classes
         {
             SerializePatch.OverrideSerialization = null;
         }
+        
 
         public static void MassSerialize(bool exclude = false, PhotonView[] viewFilter = null, int timeOffset = 0, float delay = 0f)
         {
