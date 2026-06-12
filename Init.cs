@@ -1,21 +1,25 @@
+using GorillaTagScripts;
 using Melio.Classes;
+using Melio.Hooks;
 using Melio.Patches;
+using Melio.Patches.AntiCheat;
 using Melio.Patches.Menu;
 using MelonLoader;
 using Photon.Pun;
 using Photon.Realtime;
 using UnityEngine;
-using Melio.Hooks;
 
 [assembly: MelonInfo(typeof(MelioMod), "Melio", "1.0.0", "Newwer")]
 [assembly: MelonGame(null, null)]
 
 public class MelioMod : MelonMod
 {
-    private Rect windowRect = new Rect(20, 20, 380, 320);
+    private Rect windowRect = new Rect(20, 20, 600, 500);
+
 
     private bool showMenu = true;
     private bool stylesInitialized = false;
+
 
     private int selectedTab = 0;
 
@@ -24,7 +28,8 @@ public class MelioMod : MelonMod
         "Server",
         "Photon",
         "GorillaTagger",
-        "Anti-Exploits"
+        "Anti-Exploits",
+        "Ropes"
     };
 
     private GUIStyle windowStyle;
@@ -35,9 +40,14 @@ public class MelioMod : MelonMod
     private float reconnectTimeout = -1f;
     private bool waitingForReconnect = false;
     private bool antitag = false;
+    
+    public static bool LogRPCs = false;
+    private Vector3 flingForce = new Vector3(0f, 20f, 0f);
 
     private Vector2 tabScroll;
     private Vector2 contentScroll;
+    private float ratelimit = 0;
+    private float timeleft = 0;
 
     private float currentContentHeight = 0f;
 
@@ -54,7 +64,7 @@ public class MelioMod : MelonMod
 
     public override void OnUpdate()
     {
-        
+
         if (waitingForReconnect)
         {
             if (PhotonNetwork.IsConnected)
@@ -62,22 +72,22 @@ public class MelioMod : MelonMod
                 MelonLogger.Msg("Connected to Photon.");
                 waitingForReconnect = false;
 
-                
+
                 if (antitag)
                 {
                     if (!PhotonNetwork.IsMasterClient)
-                        {
+                    {
                         Methods.InvisForU(RpcTarget.MasterClient);
                     }
                     {
-                        if ((Hooks.InfectedList().Contains(NetworkSystem.Instance.LocalPlayer))) 
+                        if ((Hooks.InfectedList().Contains(NetworkSystem.Instance.LocalPlayer)))
                         {
                             Hooks.RemoveInfected(NetworkSystem.Instance.LocalPlayer);
                         }
-                            
+
                     }
 
-                        
+
                 }
             }
             else if (Time.time > reconnectTimeout)
@@ -86,10 +96,10 @@ public class MelioMod : MelonMod
                 waitingForReconnect = false;
             }
 
-            return; 
+            return;
         }
 
-        
+
     }
 
     public override void OnGUI()
@@ -196,6 +206,9 @@ public class MelioMod : MelonMod
             case 3:
                 DrawAntiExploitsTab();
                 break;
+            case 4:
+                DrawRopesTab();
+                break;
         }
 
         GUILayout.EndVertical();
@@ -295,7 +308,7 @@ public class MelioMod : MelonMod
 
         GUILayout.EndScrollView();
     }
-    
+
     private void DrawServerTab()
     {
         GUILayout.Label(
@@ -312,18 +325,28 @@ public class MelioMod : MelonMod
         {
             NetworkSystem.Instance.ReturnToSinglePlayer();
         }
+        GUILayout.Space(15);
+
+        if (GUILayout.Button(
+            "Tag All",
+            buttonStyle
+        ))
+        {
+            foreach (Player v in PhotonNetwork.PlayerList)
+                Infection.TagPlayer(v);
+        }
     }
     private void DrawAntiExploitsTab()
     {
         GUILayout.Label(
-            "Anti-Exploits: " + antitag,
+            "Anti-Exploits",
             labelStyle
         );
 
         GUILayout.Space(15);
 
         if (GUILayout.Button(
-            "Anti-Tag",
+            "Anti-Tag: " + antitag,
             buttonStyle
         ))
         {
@@ -413,7 +436,7 @@ public class MelioMod : MelonMod
             buttonStyle
         ))
         {
-           Methods.SetRoomStatus(false);
+            Methods.SetRoomStatus(false);
         }
         GUILayout.Space(15);
 
@@ -431,8 +454,49 @@ public class MelioMod : MelonMod
             buttonStyle
         ))
         {
-            Methods.LagTarget(ReceiverGroup.Others, (float)0.1, 3200);
-            Methods.RPCProtection();
+            if (PhotonNetwork.InRoom)
+            {
+                if (Time.time > ratelimit)
+                {
+                    Methods.BetaStrongerLagTarget(ReceiverGroup.Others, (float)6, 3200); //worst code i've made so far
+                    Methods.RPCProtection();
+                    float ratelimit = Time.time + 6;
+                    timeleft = ratelimit - Time.time;
+                }
+                else
+                {
+
+                    float timeleft2 = timeleft;
+                    MelonLogger.Error("You cannot use Lag All at this time, you are being ratelimited. You currently have " + timeleft2.ToString("F1") + " before you can use Lag All again.");
+                }
+
+            }
+            GUILayout.Space(15);
+
+            if (GUILayout.Button(
+                "[BETA] Lag All",
+                buttonStyle
+            ))
+            {
+                if (PhotonNetwork.InRoom)
+                {
+                    if (Time.time > ratelimit)
+                    {
+                        Methods.BetaStrongerLagTarget(ReceiverGroup.Others, (float)6, 3200); //worst code i've made so far
+                        Methods.RPCProtection();
+                        float ratelimit = Time.time + 6;
+                        timeleft = ratelimit - Time.time;
+                    }
+                    else
+                    {
+
+                        float timeleft2 = timeleft;
+                        MelonLogger.Error("You cannot use Lag All at this time, you are being ratelimited. You currently have " + timeleft2.ToString("F1") + " before you can use Lag All again.");
+                    }
+
+                }
+
+            }
         }
     }
 
@@ -451,6 +515,78 @@ public class MelioMod : MelonMod
         ))
         {
             MothershipAuthenticator.Instance.BeginLoginFlow();
+        }
+        GUILayout.Space(15);
+
+        if (GUILayout.Button(
+            "Destroy MonkeAgent Cached List",
+            buttonStyle
+        ))
+        {
+            MonkeAgent.instance.cachedPlayerList = null; ;
+        }
+        GUILayout.Space(15);
+
+        if (GUILayout.Button(
+            "Ban All",
+            buttonStyle
+        ))
+        {
+            AntiCheatPatches.DisablePatches = true;
+            foreach (NetPlayer netPlayertoReport in PhotonNetwork.PlayerListOthers) 
+            {
+                for (int i = 0; i < 20; i++) 
+                {
+                    MonkeAgent.instance.SendReport("room host force changed", netPlayertoReport.UserId, netPlayertoReport.NickName);
+                    MonkeAgent.instance.SliceUpdate();
+                    Methods.RPCProtection();
+                }               
+            }
+            AntiCheatPatches.DisablePatches = false;
+        }
+        GUILayout.Space(15);
+
+        if (GUILayout.Button(
+            "Set Master Client [Local]", //because of how it works, its only local because NetworkSystem Master is local :3
+            buttonStyle
+        ))
+        {
+            MonkeAgent.instance.cachedPlayerList = null;
+        }
+        GUILayout.Space(15);
+
+        if (GUILayout.Button(
+            "Log RPCs Inbound: " + LogRPCs.ToString(), 
+            buttonStyle
+        ))
+        {
+            LogRPCs = !LogRPCs; 
+        }
+    }
+    private void DrawRopesTab()
+    {
+        GUILayout.Label(
+            "Ropes",
+            labelStyle
+        );
+
+        GUILayout.Space(15);
+
+        
+
+        if (GUILayout.Button("Fling Random Rope [Local]", buttonStyle))
+        {
+            var rope = RopeSwingHooks.GetRandomRope();
+
+            if (rope != null)
+                Methods.LocalFlingRopeByRope(rope);
+        }
+
+        GUILayout.Space(15);
+
+        if (GUILayout.Button("Fling All Ropes [Local]", buttonStyle))
+        {
+            Methods.LocalFlingAllRopes();
         }
     }
 }
